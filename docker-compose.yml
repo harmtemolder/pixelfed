@@ -11,13 +11,16 @@ version: '3.7'
 # The services should scale properly across a swarm cluster
 # if the volumes are properly shared between cluster members.
 #
-# Run with `docker-compose --env-file=.env.docker up`
+# Run with `docker-compose --env-file=../.env up`
 #
 # Uncomment the `build` property in the `pixelfed` and `pixelfed_worker`
 # services to build the image yourself, instead of using
 # https://hub.docker.com/r/pixelfed/pixelfed
 
 networks:
+  adminer:
+    external: true
+    name: adminer
   external:
     driver: bridge
     name: external
@@ -29,33 +32,38 @@ networks:
 services:
   # App (https://hub.docker.com/r/pixelfed/pixelfed)
   pixelfed:
-    #build:
-    #  context: .
-    #  dockerfile: contrib/docker/Dockerfile.apache
+    build:
+      context: .
+      dockerfile: contrib/docker/Dockerfile.apache
     container_name: pixelfed
     depends_on:
       pixelfed_db:
         condition: service_healthy
       redis:
         condition: service_started
-    env_file: .env.docker
+    env_file: ../.env
+    expose:
+      - '80'
     image: pixelfed/pixelfed:latest
+    labels:
+      traefik.enable: true
+      traefik.http.routers.pixelfed.entrypoints: websecure
+      traefik.http.routers.pixelfed.rule: Host(`pxlfd.photo`)
     networks:
       - external
       - pixelfed
-    ports:
-      - 8080:80
     restart: unless-stopped
     volumes:
       - pixelfed_storage:/var/www/storage
       - pixelfed_bootstrap:/var/www/bootstrap
-      - ./.env.docker:/var/www/.env
+      - ./../.env:/var/www/.env
+      #- contrib/docker/php.override.ini:/etc/php/8.1/apache2/conf.d/php.override.ini
 
   # Worker (https://hub.docker.com/r/pixelfed/pixelfed)
   pixelfed_worker:
-    #build:
-    #  context: .
-    #  dockerfile: contrib/docker/Dockerfile.apache
+    build:
+      context: .
+      dockerfile: contrib/docker/Dockerfile.apache
     container_name: pixelfed_worker
     depends_on:
       pixelfed:
@@ -65,7 +73,12 @@ services:
       redis:
         condition: service_started
     entrypoint: [ /var/www/contrib/docker/worker.apache.sh ]
-    env_file: .env.docker
+    env_file: ../.env
+    healthcheck:
+      test: php artisan horizon:status | grep running
+      interval: 60s
+      timeout: 5s
+      retries: 1
     image: pixelfed/pixelfed:latest
     networks:
       - pixelfed
@@ -81,7 +94,7 @@ services:
       - --log-bin=false # https://mariadb.com/kb/en/replication-and-binary-log-system-variables/#log_bin
       - --log-warnings=1 # To disable "Access denied" errors from `healthcheck`
     container_name: pixelfed_db
-    env_file: .env.docker
+    env_file: ../.env
     environment:
       - MYSQL_DATABASE=${DB_DATABASE}
       - MYSQL_USER=${DB_USERNAME}
@@ -96,6 +109,7 @@ services:
       start_period: 10s
     image: mariadb:10.10
     networks:
+      - adminer
       - pixelfed
     restart: unless-stopped
     volumes:
@@ -106,7 +120,7 @@ services:
     command:
       - --requirepass ${REDIS_PASSWORD}
     container_name: redis
-    env_file: .env.docker
+    env_file: ../.env
     image: redis:7.0
     networks:
       - pixelfed
