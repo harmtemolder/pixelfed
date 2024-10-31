@@ -48,7 +48,7 @@ services:
     labels:
       traefik.enable: true
       traefik.http.routers.pixelfed.entrypoints: websecure
-      traefik.http.routers.pixelfed.rule: Host(`pxlfd.photo`)
+      traefik.http.routers.pixelfed.rule: Host(`static.88.108.65.clients.your-server.de`)
     networks:
       - external
       - pixelfed
