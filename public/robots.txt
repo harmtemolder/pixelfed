@@ -1,4 +1,2 @@
 User-agent: *
-Disallow: /discover/places/
-Disallow: /stories/
-Disallow: /i/
+Disallow: /
